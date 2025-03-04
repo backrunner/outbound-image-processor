@@ -5,4 +5,8 @@ interface Env {
 	IMAGE_SOURCE: R2Bucket;
 	CACHE_MAX_AGE?: number; // Cache duration in seconds, default: 31536000 (1 year)
 	DEFAULT_IMAGE_QUALITY?: number; // Default image quality (0-100), default: 90
+	MAX_IMAGE_SIZE?: number; // Maximum image file size in bytes, default: 10485760 (10MB)
+	MAX_IMAGE_WIDTH?: number; // Maximum image width in pixels, default: 4096
+	MAX_IMAGE_HEIGHT?: number; // Maximum image height in pixels, default: 4096
+	RESIZE_OVERSIZED_IMAGES?: boolean; // Whether to resize oversized images instead of rejecting them, default: true
 }

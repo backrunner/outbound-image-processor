@@ -1,7 +1,8 @@
-import { processImage, getContentType } from './utils/image-processor';
+import { validateImage } from './modules/image-validator';
 import { parseImageParams } from './types/image';
-import { generateCacheKey, getCachedImage, cacheImage } from './utils/cache';
+import { generateCacheKey, getCachedImage, cacheImage, removeCachedImage } from './utils/cache';
 import { getCorsHeaders } from './utils/cors';
+import { processImage } from './utils/image';
 import { getBestExtendedFormat } from './utils/jsquash';
 
 export default {
@@ -19,14 +20,50 @@ export default {
 			const key = url.pathname.slice(1);
 
 			if (!key) {
-				return new Response('Not Found', { status: 404 });
+				return new Response('Not Found', {
+					status: 404,
+					headers: getCorsHeaders(request.headers.get('Origin'), env.TRUESTED_HOSTS)
+				});
 			}
 
 			// Parse image processing parameters
 			const params = parseImageParams(url.searchParams, env);
 
-			// Generate cache key
-			const cacheKey = generateCacheKey(key, params);
+			// Get image from R2
+			const object = await env.IMAGE_SOURCE.get(key);
+
+			if (!object) {
+				// Remove any existing cache for this key
+				ctx.waitUntil(removeCachedImage(caches.default, key));
+
+				return new Response('Not Found', {
+					status: 404,
+					headers: getCorsHeaders(request.headers.get('Origin'), env.TRUESTED_HOSTS)
+				});
+			}
+
+			// Get image bytes
+			const bytes = new Uint8Array(await object.arrayBuffer());
+
+			// Validate image size and dimensions
+			const validationResult = await validateImage(bytes, env);
+
+			if (!validationResult.valid || validationResult.resized) {
+				const errorMessage = validationResult.error || 'Image dimensions exceed the maximum allowed limits';
+				return new Response(errorMessage, {
+					status: 400,
+					headers: getCorsHeaders(request.headers.get('Origin'), env.TRUESTED_HOSTS)
+				});
+			}
+
+			// Extract object metadata for cache validation
+			const objectMetadata = {
+				etag: object.httpEtag,
+				uploaded: object.uploaded
+			};
+
+			// Generate cache key with validation result and object metadata
+			const cacheKey = generateCacheKey(key, params, validationResult, objectMetadata);
 
 			// Try to get from cache first
 			const cachedResponse = await getCachedImage(caches.default, cacheKey);
@@ -40,29 +77,34 @@ export default {
 				return new Response(cachedResponse.body, { headers });
 			}
 
-			// Get image from R2
-			const object = await env.IMAGE_SOURCE.get(key);
-
-			if (!object) {
-				return new Response('Not Found', { status: 404 });
+			// If we get here, either there was no cache or the object has been modified
+			// Check if there's an old cache entry without the metadata
+			const oldCacheKey = generateCacheKey(key, params, validationResult);
+			const oldCachedResponse = await getCachedImage(caches.default, oldCacheKey);
+			if (oldCachedResponse) {
+				// Object has been modified, remove old cache
+				ctx.waitUntil(removeCachedImage(caches.default, key, params));
 			}
 
 			// Get the best format based on Accept header
 			const accept = request.headers.get('Accept') || '';
 			const targetFormat = getBestExtendedFormat(accept);
 
-			// Get image bytes
-			const bytes = new Uint8Array(await object.arrayBuffer());
-
-			// Process image
-			const { bytes: processedBytes, contentType } = await processImage(bytes, targetFormat, params);
+			// Process image normally
+			const { bytes: outputBytes, contentType } = await processImage(bytes, targetFormat, params);
 
 			// Create response with appropriate headers
 			const headers = getCorsHeaders(request.headers.get('Origin'), env.TRUESTED_HOSTS);
 			headers.set('Content-Type', contentType);
 			headers.set('Cache-Control', `public, max-age=${env.CACHE_MAX_AGE || 31536000}`);
 
-			const response = new Response(processedBytes, { headers });
+			// Add image dimensions to response headers
+			if (validationResult.width && validationResult.height) {
+				headers.set('X-Image-Width', String(validationResult.width));
+				headers.set('X-Image-Height', String(validationResult.height));
+			}
+
+			const response = new Response(outputBytes, { headers });
 
 			// Cache the response
 			ctx.waitUntil(cacheImage(caches.default, cacheKey, response, env.CACHE_MAX_AGE));

@@ -1,16 +1,43 @@
 import { ImageProcessingParams } from '../types/image';
+import { ImageValidationResult } from '../modules/image-validator';
 
 /**
  * Generate a cache key for the image
  */
-export const generateCacheKey = (key: string, params: ImageProcessingParams): string => {
+export const generateCacheKey = (
+  key: string,
+  params: ImageProcessingParams,
+  validationResult?: ImageValidationResult,
+  objectMetadata?: { etag?: string; uploaded?: Date }
+): string => {
   // Sort params to ensure consistent cache keys
   const sortedParams = Object.entries(params)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
+    .map(([k, v]) => {
+      // Handle special cases like crop object
+      if (k === 'crop' && typeof v === 'object') {
+        return `${k}=${v.x},${v.y},${v.width},${v.height}`;
+      }
+      return `${k}=${v}`;
+    })
     .join('&');
 
-  return `img:${key}${sortedParams ? `?${sortedParams}` : ''}`;
+  // Add image dimensions to cache key if available
+  let dimensionsParam = '';
+  if (validationResult?.width && validationResult?.height) {
+    dimensionsParam = `&_w=${validationResult.width}&_h=${validationResult.height}`;
+  }
+
+  // Add object metadata to cache key if available
+  let metadataParam = '';
+  if (objectMetadata?.etag) {
+    metadataParam += `&_etag=${encodeURIComponent(objectMetadata.etag)}`;
+  }
+  if (objectMetadata?.uploaded) {
+    metadataParam += `&_ts=${objectMetadata.uploaded.getTime()}`;
+  }
+
+  return `img:${key}${sortedParams || dimensionsParam || metadataParam ? `?${sortedParams}${dimensionsParam}${metadataParam}` : ''}`;
 };
 
 /**
@@ -48,4 +75,26 @@ export const cacheImage = async (
   });
 
   await cache.put(cacheKey, cachedResponse);
+};
+
+/**
+ * Remove cached image
+ */
+export const removeCachedImage = async (
+  cache: Cache,
+  key: string,
+  params?: ImageProcessingParams
+): Promise<void> => {
+  // If we have specific params, try to remove that specific cache entry
+  if (params) {
+    const cacheKey = generateCacheKey(key, params);
+    await cache.delete(cacheKey);
+    return;
+  }
+
+  // Otherwise, we need to delete all cache entries that start with this key
+  // Since Cloudflare Workers Cache API doesn't support wildcard deletion,
+  // we can only delete the default version of the image
+  const cacheKey = `img:${key}`;
+  await cache.delete(cacheKey);
 };

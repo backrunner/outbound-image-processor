@@ -4,27 +4,25 @@
 	"description": "High-performance image processing service built with Cloudflare Workers",
 	"main": "dist/worker.js",
 	"scripts": {
-		"build": "webpack",
+		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
-		"deploy": "wrangler publish"
+		"start": "wrangler dev",
+		"cf-typegen": "wrangler types"
 	},
-	"author": "",
+	"author": "BackRunner",
 	"license": "MIT",
 	"dependencies": {
 		"@cf-wasm/photon": "^0.1.29",
 		"@jsquash/avif": "^2.0.0",
-		"@jsquash/jpeg": "^2.0.0",
-		"@jsquash/jxl": "^2.0.0",
+		"@jsquash/jpeg": "^1.4.0",
+		"@jsquash/jxl": "^1.1.0",
 		"@jsquash/oxipng": "^2.3.0",
-		"@jsquash/png": "^2.0.0",
-		"@jsquash/webp": "^2.0.0"
+		"@jsquash/png": "^3.0.1",
+		"@jsquash/webp": "^1.4.0"
 	},
 	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20240320.0",
-		"copy-webpack-plugin": "^11.0.0",
-		"ts-loader": "^9.5.1",
-		"typescript": "^5.3.3",
-		"webpack": "^5.90.3",
-		"webpack-cli": "^5.1.4"
+		"@cloudflare/workers-types": "^4.20250224.0",
+		"typescript": "^5.5.2",
+		"wrangler": "^3.111.0"
 	}
 }

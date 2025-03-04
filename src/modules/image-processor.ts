@@ -1,6 +1,6 @@
 import { PhotonImage, resize, rotate, adjust_brightness, adjust_contrast, grayscale, crop, SamplingFilter } from '@cf-wasm/photon';
 import { ImageProcessingParams } from '../types/image';
-import { ExtendedImageFormat, getBestExtendedFormat, processImageWithJSquash, processImageWithJSquashAndPhoton } from './jsquash';
+import { ExtendedImageFormat, processImageWithJSquash, processImageWithJSquashAndPhoton } from '../utils/jsquash';
 
 /**
  * Get content type based on format

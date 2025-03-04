@@ -1,3 +1,5 @@
+import { PhotonImage } from '@cf-wasm/photon';
+
 import encodeWebP, { init as initWebpWasm } from '@jsquash/webp/encode';
 import encodeAvif, { init as initAvifWasm } from '@jsquash/avif/encode';
 import encodeJxl, { init as initJxlWasm } from '@jsquash/jxl/encode';
@@ -9,8 +11,8 @@ import decodeAvif, { init as initAvifDecodeWasm } from '@jsquash/avif/decode';
 import decodeJxl, { init as initJxlDecodeWasm } from '@jsquash/jxl/decode';
 import decodePng, { init as initPngDecodeWasm } from '@jsquash/png/decode';
 import decodeJpeg, { init as initJpegDecodeWasm } from '@jsquash/jpeg/decode';
+
 import { ImageProcessingParams } from '../types/image';
-import { PhotonImage } from '@cf-wasm/photon';
 
 // Import WASM modules
 import WEBP_ENC_WASM from '../../node_modules/@jsquash/webp/codec/enc/webp_enc';
