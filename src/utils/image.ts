@@ -1,10 +1,20 @@
 import { PhotonImage, resize, rotate, adjust_brightness, adjust_contrast, grayscale, crop, SamplingFilter } from '@cf-wasm/photon';
 import { ImageProcessingParams } from '../types/image';
+import {
+  ExtendedImageFormat,
+  bytesToImageData,
+  imageDataToFormat,
+  initJSquash,
+  photonToImageData,
+  processImageWithJSquash,
+  processImageWithJSquashAndPhoton,
+  ImageData
+} from './jsquash';
 
 /**
  * Supported image formats
  */
-export type ImageFormat = 'webp' | 'jpeg' | 'png';
+export type ImageFormat = ExtendedImageFormat;
 
 /**
  * Convert image bytes to PhotonImage
@@ -19,6 +29,14 @@ export const bytesToPhotonImage = (bytes: Uint8Array): PhotonImage => {
 export const getBestImageFormat = (accept: string): ImageFormat => {
   const accepts = accept.toLowerCase();
 
+  if (accepts.includes('image/jxl')) {
+    return 'jxl';
+  }
+
+  if (accepts.includes('image/avif')) {
+    return 'avif';
+  }
+
   if (accepts.includes('image/webp')) {
     return 'webp';
   }
@@ -31,31 +49,28 @@ export const getBestImageFormat = (accept: string): ImageFormat => {
 };
 
 /**
- * Convert PhotonImage to specified format
+ * Get content type based on format
  */
-export const convertToFormat = (image: PhotonImage, format: ImageFormat, quality: number = 90): Uint8Array => {
+export const getContentType = (format: ImageFormat): string => {
   switch (format) {
+    case 'avif':
+      return 'image/avif';
+    case 'jxl':
+      return 'image/jxl';
     case 'webp':
-      return image.get_bytes_webp();
+      return 'image/webp';
     case 'jpeg':
-      return image.get_bytes_jpeg(quality);
+      return 'image/jpeg';
     case 'png':
     default:
-      return image.get_bytes();
+      return 'image/png';
   }
 };
 
 /**
- * Get content type based on format
+ * Apply image processing operations using Photon
  */
-export const getContentType = (format: ImageFormat): string => {
-  return `image/${format}`;
-};
-
-/**
- * Apply image processing operations
- */
-const applyImageOperations = (image: PhotonImage, params: ImageProcessingParams): PhotonImage => {
+export const applyImageOperations = (image: PhotonImage, params: ImageProcessingParams): PhotonImage => {
   let processedImage = image;
 
   // Resize
@@ -97,36 +112,115 @@ const applyImageOperations = (image: PhotonImage, params: ImageProcessingParams)
 };
 
 /**
- * Process image with PhotonImage
+ * Convert ImageData to PhotonImage
+ * This is useful when we have already decoded an image with jsquash
  */
-export const processImage = (
+export const imageDataToPhotonImage = (imageData: ImageData): PhotonImage => {
+  // Create a temporary canvas to get raw RGBA data
+  // Since we're in a Cloudflare Worker environment, we need to manually create RGBA data
+  const width = imageData.width;
+  const height = imageData.height;
+  const rgba = new Uint8Array(width * height * 4);
+
+  // Copy data from ImageData to RGBA array
+  // ImageData uses Uint8ClampedArray which is compatible with Uint8Array
+  for (let i = 0; i < imageData.data.length; i++) {
+    rgba[i] = imageData.data[i];
+  }
+
+  // Create PhotonImage from raw pixels
+  return PhotonImage.new_from_byteslice(rgba);
+};
+
+/**
+ * Process image with a unified pipeline:
+ * 1. Decode with jsquash (supports more formats)
+ * 2. Process with photon (faster operations)
+ * 3. Encode with jsquash (supports more formats)
+ */
+export const processImage = async (
   inputBytes: Uint8Array,
   targetFormat: ImageFormat,
   params: ImageProcessingParams = {}
-): {
+): Promise<{
   bytes: Uint8Array;
   contentType: string;
-} => {
-  const inputImage = bytesToPhotonImage(inputBytes);
+}> => {
+  // Ensure jsquash is initialized
+  await initJSquash();
 
-  // Apply image operations
-  const processedImage = applyImageOperations(inputImage, params);
+  // Determine the output format
+  const outputFormat = params.format || targetFormat;
+  const quality = params.quality !== undefined ? params.quality : 90;
 
-  // Convert to target format
-  const outputBytes = convertToFormat(
-    processedImage,
-    params.format || targetFormat,
-    params.quality
+  // Check if we need to apply any image operations
+  const needsProcessing = !!(
+    params.width ||
+    params.height ||
+    params.rotate ||
+    params.brightness ||
+    params.contrast ||
+    params.grayscale ||
+    params.saturation ||
+    params.crop ||
+    params.fit ||
+    params.position
   );
 
-  // Free memory
-  inputImage.free();
-  if (processedImage !== inputImage) {
-    processedImage.free();
-  }
+  try {
+    if (needsProcessing) {
+      // STEP 1: Decode input bytes to ImageData using jsquash
+      const imageData = await bytesToImageData(inputBytes);
 
-  return {
-    bytes: outputBytes,
-    contentType: getContentType(params.format || targetFormat),
-  };
+      // STEP 2: Convert ImageData to PhotonImage for processing
+      const photonImage = imageDataToPhotonImage(imageData);
+
+      // STEP 3: Apply image operations with Photon
+      const processedImage = applyImageOperations(photonImage, params);
+
+      // STEP 4: Convert processed PhotonImage back to ImageData for encoding
+      const processedImageData = photonToImageData(processedImage);
+
+      // STEP 5: Encode to target format with jsquash
+      const result = await imageDataToFormat(processedImageData, outputFormat, quality, params);
+
+      // Free memory
+      photonImage.free();
+      if (processedImage !== photonImage) {
+        processedImage.free();
+      }
+
+      return result;
+    } else {
+      // If no processing is needed, just decode and re-encode with jsquash
+      // This path is more efficient for format conversion only
+      return await processImageWithJSquash(inputBytes, outputFormat, quality, params);
+    }
+  } catch (error: any) {
+    console.error('Error processing image:', error);
+
+    // Fallback: If jsquash decoding fails, try with photon directly
+    try {
+      const photonImage = bytesToPhotonImage(inputBytes);
+
+      if (needsProcessing) {
+        const processedImage = applyImageOperations(photonImage, params);
+        const result = await processImageWithJSquashAndPhoton(processedImage, outputFormat, quality, params);
+
+        // Free memory
+        photonImage.free();
+        if (processedImage !== photonImage) {
+          processedImage.free();
+        }
+
+        return result;
+      } else {
+        const result = await processImageWithJSquashAndPhoton(photonImage, outputFormat, quality, params);
+        photonImage.free();
+        return result;
+      }
+    } catch (fallbackError: any) {
+      throw new Error(`Failed to process image: ${error.message}. Fallback also failed: ${fallbackError.message}`);
+    }
+  }
 };

@@ -1,9 +1,13 @@
-import { ImageFormat } from '../utils/image';
+import { ExtendedImageFormat } from '../utils/jsquash';
 
 export interface ImageProcessingParams {
   // Format settings
-  format?: ImageFormat;
+  format?: ExtendedImageFormat;
   quality?: number;
+
+  // PNG specific options
+  optimize?: boolean; // Use OxiPNG optimization for PNG
+  compressionLevel?: number; // OxiPNG compression level (0-6)
 
   // Resize settings
   width?: number;
@@ -34,20 +38,34 @@ export interface ImageProcessingParams {
 /**
  * Parse query parameters into ImageProcessingParams
  */
-export const parseImageParams = (searchParams: URLSearchParams): ImageProcessingParams => {
+export const parseImageParams = (searchParams: URLSearchParams, env?: Env): ImageProcessingParams => {
   const params: ImageProcessingParams = {};
+  const defaultQuality = env?.DEFAULT_IMAGE_QUALITY || 90;
 
   // Format and quality
   if (searchParams.has('format')) {
-    const format = searchParams.get('format') as ImageFormat;
-    if (['webp', 'jpeg', 'png'].includes(format)) {
+    const format = searchParams.get('format') as ExtendedImageFormat;
+    if (['webp', 'jpeg', 'png', 'avif', 'jxl'].includes(format)) {
       params.format = format;
     }
   }
   if (searchParams.has('quality')) {
-    const quality = parseInt(searchParams.get('quality') || '90', 10);
+    const quality = parseInt(searchParams.get('quality') || String(defaultQuality), 10);
     if (!isNaN(quality) && quality >= 0 && quality <= 100) {
       params.quality = quality;
+    }
+  } else {
+    params.quality = defaultQuality;
+  }
+
+  // PNG optimization
+  if (searchParams.has('optimize')) {
+    params.optimize = searchParams.get('optimize') === 'true';
+  }
+  if (searchParams.has('compressionLevel')) {
+    const level = parseInt(searchParams.get('compressionLevel') || '2', 10);
+    if (!isNaN(level) && level >= 0 && level <= 6) {
+      params.compressionLevel = level;
     }
   }
 

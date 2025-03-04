@@ -4,4 +4,5 @@ interface Env {
 	TRUESTED_HOSTS: string[];
 	IMAGE_SOURCE: R2Bucket;
 	CACHE_MAX_AGE?: number; // Cache duration in seconds, default: 31536000 (1 year)
+	DEFAULT_IMAGE_QUALITY?: number; // Default image quality (0-100), default: 90
 }

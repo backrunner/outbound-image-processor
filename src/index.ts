@@ -1,7 +1,8 @@
-import { getBestImageFormat, processImage } from './utils/image';
+import { processImage, getContentType } from './utils/image-processor';
 import { parseImageParams } from './types/image';
 import { generateCacheKey, getCachedImage, cacheImage } from './utils/cache';
 import { getCorsHeaders } from './utils/cors';
+import { getBestExtendedFormat } from './utils/jsquash';
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -22,7 +23,7 @@ export default {
 			}
 
 			// Parse image processing parameters
-			const params = parseImageParams(url.searchParams);
+			const params = parseImageParams(url.searchParams, env);
 
 			// Generate cache key
 			const cacheKey = generateCacheKey(key, params);
@@ -48,13 +49,13 @@ export default {
 
 			// Get the best format based on Accept header
 			const accept = request.headers.get('Accept') || '';
-			const targetFormat = getBestImageFormat(accept);
+			const targetFormat = getBestExtendedFormat(accept);
 
 			// Get image bytes
 			const bytes = new Uint8Array(await object.arrayBuffer());
 
 			// Process image
-			const { bytes: processedBytes, contentType } = processImage(bytes, targetFormat, params);
+			const { bytes: processedBytes, contentType } = await processImage(bytes, targetFormat, params);
 
 			// Create response with appropriate headers
 			const headers = getCorsHeaders(request.headers.get('Origin'), env.TRUESTED_HOSTS);

@@ -1,0 +1,24 @@
+name = "outbound-image-processor"
+main = "src/test-image-processor.ts"
+compatibility_date = "2023-12-01"
+
+[build]
+command = "npm run build"
+
+[vars]
+DEFAULT_IMAGE_QUALITY = "90"
+
+# 可选：添加图片源白名单，防止滥用
+# WHITE_LIST = "example.com,images.example.com"
+
+# 可选：配置 KV 存储用于缓存
+# [[kv_namespaces]]
+# binding = "IMAGE_CACHE"
+# id = "your-kv-namespace-id"
+# preview_id = "your-preview-kv-namespace-id"
+
+# 可选：配置 R2 存储用于缓存大文件
+# [[r2_buckets]]
+# binding = "IMAGE_STORAGE"
+# bucket_name = "your-bucket-name"
+# preview_bucket_name = "your-preview-bucket-name"

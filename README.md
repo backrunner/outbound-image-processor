@@ -1,150 +1,98 @@
 # Outbound Image Processor
 
-A Cloudflare Worker that processes images on-the-fly using the `@cf-wasm/photon` library.
-
-This can be used as a partial replacement for Cloudflare Images.
+A high-performance image processing service built with Cloudflare Workers, leveraging the power of `@cf-wasm/photon` and `jsquash` libraries.
 
 ## Features
 
-- Image format conversion (WebP, JPEG, PNG)
-- Automatic format selection based on browser support
-- Image processing operations:
-  - Resize
-  - Rotate
-  - Brightness/Contrast adjustment
-  - Grayscale conversion
-  - Cropping
-- Automatic caching of processed images
-- Configurable CORS support
-- R2 storage integration
-- Configurable cache duration
+- **High Performance**: Uses WebAssembly-powered image processing libraries
+- **Multiple Format Support**: Process and convert between WebP, JPEG, PNG, AVIF, and JXL formats
+- **Advanced Processing**: Resize, crop, rotate, adjust brightness/contrast, and more
+- **Format Optimization**: Automatically selects the best format based on browser support
+- **Hybrid Processing**: Uses Photon for fast image manipulation and jSquash for advanced format encoding
 
 ## Usage
 
-### Basic Usage
+### API Endpoint
 
 ```
-https://your-worker.workers.dev/image.jpg
+https://outbound-image-processor.your-subdomain.workers.dev/?url=IMAGE_URL&[options]
 ```
 
-The `image.jpg` is the key of the certain image in your R2 bucket.
+### Query Parameters
 
-### Image Processing Parameters
-
-You can add query parameters to process the image:
-
-#### Format and Quality
-
-- `format`: Force output format (`webp`, `jpeg`, `png`)
-- `quality`: JPEG quality (0-100, default: 90)
-
-#### Resize
-
-- `width`: Target width in pixels
-- `height`: Target height in pixels
-
-#### Rotation
-
-- `rotate`: Rotation angle in degrees
-
-#### Color Adjustments
-
-- `brightness`: Brightness adjustment (-100 to 100)
-- `contrast`: Contrast adjustment (-100 to 100)
-- `grayscale`: Convert to grayscale (`true` or `false`)
-
-#### Crop
-
-- `crop`: Crop parameters as `x,y,width,height`
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `url` | URL of the source image (required) | - |
+| `format` | Output format: `webp`, `jpeg`, `png`, `avif`, `jxl` | `webp` |
+| `width` | Target width in pixels | Original width |
+| `height` | Target height in pixels | Original height |
+| `quality` | Image quality (1-100) | 90 |
+| `optimize` | Enable PNG optimization (true/false) | false |
+| `grayscale` | Convert to grayscale (true/false) | false |
+| `rotate` | Rotation angle in degrees | 0 |
+| `brightness` | Brightness adjustment (-100 to 100) | 0 |
+| `contrast` | Contrast adjustment (-100 to 100) | 0 |
 
 ### Examples
 
-1. Resize to 800x600:
-
+Basic usage:
 ```
-https://your-worker.workers.dev/image.jpg?width=800&height=600
-```
-
-2. Convert to WebP with 80% quality:
-
-```
-https://your-worker.workers.dev/image.jpg?format=webp&quality=80
+https://outbound-image-processor.your-subdomain.workers.dev/?url=https://example.com/image.jpg
 ```
 
-3. Rotate and adjust brightness:
-
+Resize and convert to WebP:
 ```
-https://your-worker.workers.dev/image.jpg?rotate=90&brightness=20
-```
-
-4. Crop and convert to grayscale:
-
-```
-https://your-worker.workers.dev/image.jpg?crop=100,100,500,500&grayscale=true
+https://outbound-image-processor.your-subdomain.workers.dev/?url=https://example.com/image.jpg&width=800&height=600&format=webp
 ```
 
-5. Complex transformation:
-
+Convert to AVIF with quality adjustment:
 ```
-https://your-worker.workers.dev/image.jpg?width=800&height=600&brightness=10&contrast=20&format=webp&quality=85
+https://outbound-image-processor.your-subdomain.workers.dev/?url=https://example.com/image.jpg&format=avif&quality=80
+```
+
+Apply multiple transformations:
+```
+https://outbound-image-processor.your-subdomain.workers.dev/?url=https://example.com/image.jpg&width=500&grayscale=true&brightness=10&contrast=20
 ```
 
 ## Development
 
 ### Prerequisites
 
-- Node.js 18+
-- Wrangler CLI
-- Cloudflare account
+- Node.js 16+
+- Wrangler CLI (`npm install -g wrangler`)
 
 ### Setup
 
 1. Clone the repository
-2. Install dependencies:
+   ```
+   git clone https://github.com/yourusername/outbound-image-processor.git
+   cd outbound-image-processor
+   ```
 
-   ```bash
+2. Install dependencies
+   ```
    npm install
    ```
 
-3. Configure your Cloudflare R2 bucket and settings in `wrangler.toml`:
-
-   ```toml
-   [[r2_buckets]]
-   binding = "IMAGE_SOURCE"
-   bucket_name = "your-bucket-name"
-
-   [vars]
-   TRUESTED_HOSTS = ["example.com", "trusted-domain.com"]
-   CACHE_MAX_AGE = 31536000  # Cache duration in seconds (1 year)
+3. Run locally
+   ```
+   wrangler dev
    ```
 
-4. Deploy:
-
-   ```bash
-   npm run deploy
+4. Deploy to Cloudflare
+   ```
+   wrangler publish
    ```
 
-### CORS Configuration
+## Configuration
 
-The worker supports CORS through the `TRUESTED_HOSTS` environment variable. Add your trusted domains to the `wrangler.toml` configuration:
+Edit `wrangler.toml` to configure:
 
-```toml
-[vars]
-TRUESTED_HOSTS = ["example.com", "trusted-domain.com"]
-```
-
-Only requests from these domains will be allowed to access the image processing service.
-
-### Caching
-
-Processed images are automatically cached. The cache duration can be configured through the `CACHE_MAX_AGE` environment variable (in seconds). If not specified, it defaults to 1 year (31536000 seconds).
-
-The cache is keyed by:
-- Image path
-- Processing parameters
-- Output format
-
-This means that identical requests will be served from cache, improving performance and reducing server load.
+- Default image quality
+- Image source whitelist (optional)
+- KV storage for caching (optional)
+- R2 storage for large files (optional)
 
 ## License
 
