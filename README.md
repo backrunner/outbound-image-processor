@@ -9,20 +9,33 @@ A high-performance image processing service built with Cloudflare Workers, lever
 - **Advanced Processing**: Resize, crop, rotate, adjust brightness/contrast, and more
 - **Format Optimization**: Automatically selects the best format based on browser support
 - **Hybrid Processing**: Uses Photon for fast image manipulation and jSquash for advanced format encoding
+- **Cache Management**: Supports cache invalidation through authenticated DELETE requests
 
 ## Usage
 
-### API Endpoint
+### API Endpoints
+
+#### GET - Retrieve and Process Images
 
 ```
-https://outbound-image-processor.your-subdomain.workers.dev/?url=IMAGE_URL&[options]
+https://outbound-image-processor.your-subdomain.workers.dev/IMAGE_KEY?[options]
+```
+
+#### DELETE - Clear Image Cache
+
+```
+https://outbound-image-processor.your-subdomain.workers.dev/IMAGE_KEY
+```
+
+**Note**: DELETE requests require authorization with an API key in the header:
+```
+Authorization: Bearer YOUR_API_KEY
 ```
 
 ### Query Parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `url` | URL of the source image (required) | - |
 | `format` | Output format: `webp`, `jpeg`, `png`, `avif`, `jxl` | `webp` |
 | `width` | Target width in pixels | Original width |
 | `height` | Target height in pixels | Original height |
@@ -35,24 +48,29 @@ https://outbound-image-processor.your-subdomain.workers.dev/?url=IMAGE_URL&[opti
 
 ### Examples
 
-Basic usage:
+Basic image retrieval:
 ```
-https://outbound-image-processor.your-subdomain.workers.dev/?url=https://example.com/image.jpg
+https://outbound-image-processor.your-subdomain.workers.dev/my-image-key
 ```
 
 Resize and convert to WebP:
 ```
-https://outbound-image-processor.your-subdomain.workers.dev/?url=https://example.com/image.jpg&width=800&height=600&format=webp
+https://outbound-image-processor.your-subdomain.workers.dev/my-image-key?width=800&height=600&format=webp
 ```
 
 Convert to AVIF with quality adjustment:
 ```
-https://outbound-image-processor.your-subdomain.workers.dev/?url=https://example.com/image.jpg&format=avif&quality=80
+https://outbound-image-processor.your-subdomain.workers.dev/my-image-key?format=avif&quality=80
 ```
 
 Apply multiple transformations:
 ```
-https://outbound-image-processor.your-subdomain.workers.dev/?url=https://example.com/image.jpg&width=500&grayscale=true&brightness=10&contrast=20
+https://outbound-image-processor.your-subdomain.workers.dev/my-image-key?width=500&grayscale=true&brightness=10&contrast=20
+```
+
+Clear image cache (requires API key):
+```
+curl -X DELETE -H "Authorization: Bearer YOUR_API_KEY" https://outbound-image-processor.your-subdomain.workers.dev/my-image-key
 ```
 
 ## Development
@@ -93,6 +111,17 @@ Edit `wrangler.toml` to configure:
 - Image source whitelist (optional)
 - KV storage for caching (optional)
 - R2 storage for large files (optional)
+- API key for authenticated operations (required for DELETE)
+
+### Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `IMAGE_SOURCE` | R2 bucket for storing images | Yes |
+| `TRUSTED_HOSTS` | Trusted hosts for CORS | Yes |
+| `CACHE_DOMAIN` | Domain to use for cache keys | No |
+| `API_KEY` | API key for authenticated operations | Yes (for DELETE) |
+| `CACHE_MAX_AGE` | Maximum age for cached images in seconds | No |
 
 ## License
 
