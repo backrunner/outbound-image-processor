@@ -26,6 +26,37 @@ export default {
 				});
 			}
 
+			// Handle DELETE request - remove all cache for the specified key
+			if (request.method === 'DELETE') {
+				// Check if the request has proper authorization
+				const authHeader = request.headers.get('Authorization');
+				if (!authHeader || !env.API_KEY || authHeader !== `Bearer ${env.API_KEY}`) {
+					return new Response('Unauthorized', {
+						status: 401,
+						headers: getCorsHeaders(request.headers.get('Origin'), env.TRUSTED_HOSTS)
+					});
+				}
+
+				// Remove any existing cache for this key
+				await removeCachedImage(caches.default, key, undefined, env.CACHE_DOMAIN);
+
+				return new Response('Cache cleared successfully', {
+					status: 200,
+					headers: getCorsHeaders(request.headers.get('Origin'), env.TRUSTED_HOSTS)
+				});
+			}
+
+			// Only allow GET requests for retrieving images
+			if (request.method !== 'GET') {
+				return new Response('Method Not Allowed', {
+					status: 405,
+					headers: {
+						...getCorsHeaders(request.headers.get('Origin'), env.TRUSTED_HOSTS),
+						'Allow': 'GET, DELETE, OPTIONS'
+					}
+				});
+			}
+
 			// Parse image processing parameters
 			const params = parseImageParams(url.searchParams, env);
 
