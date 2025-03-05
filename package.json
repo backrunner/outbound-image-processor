@@ -4,9 +4,11 @@
 	"description": "High-performance image processing service built with Cloudflare Workers",
 	"main": "dist/worker.js",
 	"scripts": {
+		"build": "wrangler deploy --dry-run --outdir dist",
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev",
 		"start": "wrangler dev",
+		"type-check": "tsc --noEmit",
 		"cf-typegen": "wrangler types"
 	},
 	"author": "BackRunner",
@@ -21,8 +23,8 @@
 		"@jsquash/webp": "^1.4.0"
 	},
 	"devDependencies": {
-		"@cloudflare/workers-types": "^4.20250224.0",
-		"typescript": "^5.5.2",
-		"wrangler": "^3.111.0"
+		"@cloudflare/workers-types": "^4.20250303.0",
+		"typescript": "^5.8.2",
+		"wrangler": "^3.112.0"
 	}
 }
