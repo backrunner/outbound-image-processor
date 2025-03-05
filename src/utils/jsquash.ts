@@ -15,17 +15,26 @@ import decodeJpeg, { init as initJpegDecodeWasm } from '@jsquash/jpeg/decode';
 import { ImageProcessingParams } from '../types/image';
 
 // Import WASM modules
-import WEBP_ENC_WASM from '../../node_modules/@jsquash/webp/codec/enc/webp_enc';
-import WEBP_DEC_WASM from '../../node_modules/@jsquash/webp/codec/dec/webp_dec';
-import AVIF_ENC_WASM from '../../node_modules/@jsquash/avif/codec/enc/avif_enc';
-import AVIF_DEC_WASM from '../../node_modules/@jsquash/avif/codec/dec/avif_dec';
-import JXL_ENC_WASM from '../../node_modules/@jsquash/jxl/codec/enc/jxl_enc';
-import JXL_DEC_WASM from '../../node_modules/@jsquash/jxl/codec/dec/jxl_dec';
-import PNG_ENC_WASM from '../../node_modules/@jsquash/png/codec/pkg/squoosh_png';
-import OXI_PNG_ENC_WASM from '../../node_modules/@jsquash/oxipng/codec/pkg/squoosh_oxipng';
-import PNG_DEC_WASM from '../../node_modules/@jsquash/png/codec/pkg/squoosh_png';
-import JPEG_ENC_WASM from '../../node_modules/@jsquash/jpeg/codec/enc/mozjpeg_enc';
-import JPEG_DEC_WASM from '../../node_modules/@jsquash/jpeg/codec/dec/mozjpeg_dec';
+// @ts-ignore
+import WEBP_ENC_WASM from '../../node_modules/@jsquash/webp/codec/enc/webp_enc.wasm';
+// @ts-ignore
+import WEBP_DEC_WASM from '../../node_modules/@jsquash/webp/codec/dec/webp_dec.wasm';
+// @ts-ignore
+import AVIF_ENC_WASM from '../../node_modules/@jsquash/avif/codec/enc/avif_enc.wasm';
+// @ts-ignore
+import AVIF_DEC_WASM from '../../node_modules/@jsquash/avif/codec/dec/avif_dec.wasm';
+// @ts-ignore
+import JXL_ENC_WASM from '../../node_modules/@jsquash/jxl/codec/enc/jxl_enc.wasm';
+// @ts-ignore
+import JXL_DEC_WASM from '../../node_modules/@jsquash/jxl/codec/dec/jxl_dec.wasm';
+// @ts-ignore
+import PNG_WASM from '../../node_modules/@jsquash/png/codec/pkg/squoosh_png_bg.wasm';
+// @ts-ignore
+import OXI_PNG_ENC_WASM from '../../node_modules/@jsquash/oxipng/codec/pkg/squoosh_oxipng_bg.wasm';
+// @ts-ignore
+import JPEG_ENC_WASM from '../../node_modules/@jsquash/jpeg/codec/enc/mozjpeg_enc.wasm';
+// @ts-ignore
+import JPEG_DEC_WASM from '../../node_modules/@jsquash/jpeg/codec/dec/mozjpeg_dec.wasm';
 
 // Define ImageData interface for Cloudflare Workers environment
 export interface ImageData {
@@ -35,34 +44,65 @@ export interface ImageData {
   colorSpace?: string;
 }
 
-// Initialize modules
-let initialized = false;
+
+// Track initialization status of individual modules
+const moduleStatus = {
+  webpEnc: false,
+  avifEnc: false,
+  jxlEnc: false,
+  pngEnc: false,
+  jpegEnc: false,
+  webpDec: false,
+  avifDec: false,
+  jxlDec: false,
+  pngDec: false,
+  jpegDec: false,
+  oxiPng: false
+};
 
 /**
- * Initialize all jSquash modules
+ * Initialize a specific jSquash module
  */
-export const initJSquash = async (): Promise<void> => {
-  if (initialized) return;
+export const initModule = async (module: keyof typeof moduleStatus): Promise<void> => {
+  if (moduleStatus[module]) return;
 
-  // Initialize encoders
-  await Promise.all([
-		// encoders
-    initWebpWasm(WEBP_ENC_WASM),
-    initAvifWasm(AVIF_ENC_WASM),
-    initJxlWasm(JXL_ENC_WASM),
-    initPngWasm(PNG_ENC_WASM),
-    initJpegWasm(JPEG_ENC_WASM),
-		// decoders
-    initWebpDecodeWasm(WEBP_DEC_WASM),
-    initAvifDecodeWasm(AVIF_DEC_WASM),
-    initJxlDecodeWasm(JXL_DEC_WASM),
-    initPngDecodeWasm(PNG_DEC_WASM),
-    initJpegDecodeWasm(JPEG_DEC_WASM),
-		// misc
-    initOxiPngWasm(OXI_PNG_ENC_WASM),
-  ]);
+  switch (module) {
+    case 'webpEnc':
+      await initWebpWasm(WEBP_ENC_WASM);
+      break;
+    case 'avifEnc':
+      await initAvifWasm(AVIF_ENC_WASM);
+      break;
+    case 'jxlEnc':
+      await initJxlWasm(JXL_ENC_WASM);
+      break;
+    case 'pngEnc':
+      await initPngWasm(PNG_WASM);
+      break;
+    case 'jpegEnc':
+      await initJpegWasm(JPEG_ENC_WASM);
+      break;
+    case 'webpDec':
+      await initWebpDecodeWasm(WEBP_DEC_WASM);
+      break;
+    case 'avifDec':
+      await initAvifDecodeWasm(AVIF_DEC_WASM);
+      break;
+    case 'jxlDec':
+      await initJxlDecodeWasm(JXL_DEC_WASM);
+      break;
+    case 'pngDec':
+      await initPngDecodeWasm(PNG_WASM);
+      break;
+    case 'jpegDec':
+      await initJpegDecodeWasm(JPEG_DEC_WASM);
+      break;
+    case 'oxiPng':
+      await initOxiPngWasm(OXI_PNG_ENC_WASM);
+      break;
+  }
 
-  initialized = true;
+  moduleStatus[module] = true;
 };
 
 /**
@@ -103,22 +143,26 @@ export const bytesToImageData = async (bytes: Uint8Array): Promise<ImageData> =>
   try {
     // Check for JPEG signature
     if (bytes[0] === 0xFF && bytes[1] === 0xD8) {
+      await initModule('jpegDec');
       return await decodeJpeg(bytes);
     }
 
     // Check for PNG signature
     if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+      await initModule('pngDec');
       return await decodePng(bytes);
     }
 
     // Check for WebP signature
     if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
         bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+      await initModule('webpDec');
       return await decodeWebP(bytes);
     }
 
     // Try AVIF
     try {
+      await initModule('avifDec');
       return await decodeAvif(bytes);
     } catch (e) {
       // Not AVIF, continue
@@ -126,12 +170,14 @@ export const bytesToImageData = async (bytes: Uint8Array): Promise<ImageData> =>
 
     // Try JXL
     try {
+      await initModule('jxlDec');
       return await decodeJxl(bytes);
     } catch (e) {
       // Not JXL, continue
     }
 
     // Fallback to JPEG
+    await initModule('jpegDec');
     return await decodeJpeg(bytes);
   } catch (error: any) {
     throw new Error(`Failed to decode image: ${error.message}`);
@@ -188,13 +234,15 @@ export const imageDataToFormat = async (
 
   switch (format) {
     case 'avif':
+      await initModule('avifEnc');
       bytes = new Uint8Array(await encodeAvif(adaptedImageData, {
-        quality: quality / 100,
+        quality,
         // AVIF specific options could be added here
       }));
       contentType = 'image/avif';
       break;
     case 'jxl':
+      await initModule('jxlEnc');
       bytes = new Uint8Array(await encodeJxl(adaptedImageData, {
         quality,
         // JXL specific options could be added here
@@ -202,6 +250,7 @@ export const imageDataToFormat = async (
       contentType = 'image/jxl';
       break;
     case 'webp':
+      await initModule('webpEnc');
       bytes = new Uint8Array(await encodeWebP(adaptedImageData, {
         quality,
         // WebP specific options could be added here
@@ -209,8 +258,10 @@ export const imageDataToFormat = async (
       contentType = 'image/webp';
       break;
     case 'png':
+      await initModule('pngEnc');
       if (params.optimize) {
         // Use OxiPNG for optimized PNG
+        await initModule('oxiPng');
         const compressionLevel = params.compressionLevel !== undefined ? params.compressionLevel : 2;
         const pngBytes = await encodePng(adaptedImageData);
         bytes = new Uint8Array(await optimisePng(pngBytes, { level: compressionLevel }));
@@ -221,6 +272,7 @@ export const imageDataToFormat = async (
       break;
     case 'jpeg':
     default:
+      await initModule('jpegEnc');
       bytes = new Uint8Array(await encodeJpeg(adaptedImageData, {
         quality,
         // JPEG specific options could be added here
@@ -241,8 +293,7 @@ export const processImageWithJSquash = async (
   quality: number = 90,
   params: ImageProcessingParams = {}
 ): Promise<{ bytes: Uint8Array; contentType: string }> => {
-  // Ensure jSquash is initialized
-  await initJSquash();
+  // No need to initialize all modules, they will be initialized on demand
 
   // Decode image
   const imageData = await bytesToImageData(inputBytes);
@@ -260,8 +311,7 @@ export const processImageWithJSquashAndPhoton = async (
   quality: number = 90,
   params: ImageProcessingParams = {}
 ): Promise<{ bytes: Uint8Array; contentType: string }> => {
-  // Ensure jSquash is initialized
-  await initJSquash();
+  // No need to initialize all modules, they will be initialized on demand
 
   // Convert PhotonImage to ImageData
   const imageData = photonToImageData(photonImage);

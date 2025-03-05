@@ -1,6 +1,9 @@
 import { ImageProcessingParams } from '../types/image';
 import { ImageValidationResult } from '../modules/image-validator';
 
+// Default cache domain if not specified in environment variables
+const DEFAULT_CACHE_DOMAIN = 'image-cache.workers.dev';
+
 /**
  * Generate a cache key for the image
  */
@@ -8,7 +11,8 @@ export const generateCacheKey = (
   key: string,
   params: ImageProcessingParams,
   validationResult?: ImageValidationResult,
-  objectMetadata?: { etag?: string; uploaded?: Date }
+  objectMetadata?: { etag?: string; uploaded?: Date },
+  cacheDomain?: string
 ): string => {
   // Sort params to ensure consistent cache keys
   const sortedParams = Object.entries(params)
@@ -37,7 +41,13 @@ export const generateCacheKey = (
     metadataParam += `&_ts=${objectMetadata.uploaded.getTime()}`;
   }
 
-  return `img:${key}${sortedParams || dimensionsParam || metadataParam ? `?${sortedParams}${dimensionsParam}${metadataParam}` : ''}`;
+  // Create a fully-qualified URL for the cache key
+  const domain = cacheDomain || DEFAULT_CACHE_DOMAIN;
+  const queryParams = sortedParams || dimensionsParam || metadataParam
+    ? `?${sortedParams}${dimensionsParam}${metadataParam}`
+    : '';
+
+  return `https://${domain}/${key}${queryParams}`;
 };
 
 /**
@@ -83,11 +93,12 @@ export const cacheImage = async (
 export const removeCachedImage = async (
   cache: Cache,
   key: string,
-  params?: ImageProcessingParams
+  params?: ImageProcessingParams,
+  cacheDomain?: string
 ): Promise<void> => {
   // If we have specific params, try to remove that specific cache entry
   if (params) {
-    const cacheKey = generateCacheKey(key, params);
+    const cacheKey = generateCacheKey(key, params, undefined, undefined, cacheDomain);
     await cache.delete(cacheKey);
     return;
   }
@@ -95,6 +106,7 @@ export const removeCachedImage = async (
   // Otherwise, we need to delete all cache entries that start with this key
   // Since Cloudflare Workers Cache API doesn't support wildcard deletion,
   // we can only delete the default version of the image
-  const cacheKey = `img:${key}`;
+  const domain = cacheDomain || DEFAULT_CACHE_DOMAIN;
+  const cacheKey = `https://${domain}/${key}`;
   await cache.delete(cacheKey);
 };

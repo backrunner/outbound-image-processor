@@ -4,7 +4,6 @@ import {
   ExtendedImageFormat,
   bytesToImageData,
   imageDataToFormat,
-  initJSquash,
   photonToImageData,
   processImageWithJSquash,
   processImageWithJSquashAndPhoton,
@@ -146,9 +145,6 @@ export const processImage = async (
   bytes: Uint8Array;
   contentType: string;
 }> => {
-  // Ensure jsquash is initialized
-  await initJSquash();
-
   // Determine the output format
   const outputFormat = params.format || targetFormat;
   const quality = params.quality !== undefined ? params.quality : 90;

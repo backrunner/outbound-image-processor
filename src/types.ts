@@ -7,5 +7,11 @@ interface Env {
   /**
    * Trusted hosts for CORS
    */
-  TRUESTED_HOSTS: string[];
+  TRUSTED_HOSTS: string[];
+
+  /**
+   * Domain to use for cache keys
+   * Default: image-cache.workers.dev
+   */
+  CACHE_DOMAIN?: string;
 }
